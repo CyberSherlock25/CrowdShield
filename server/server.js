@@ -3,7 +3,7 @@ import http from "http";
 import { Server } from "socket.io";
 import cors from "cors";
 import jwt from "jsonwebtoken";
-import { initialVenueData, initialCameraFeeds, simulationScenarios } from "./data/mockData.js";
+import { initialVenueData, initialCameraFeeds, initialWhatsAppAlerts, simulationScenarios, delhiLandmarks } from "./data/mockData.js";
 
 const app = express();
 const server = http.createServer(app);
@@ -22,77 +22,56 @@ const JWT_SECRET = "crowdshield-super-secret-key-2026";
 // Live state in memory
 let liveState = JSON.parse(JSON.stringify(initialVenueData));
 let liveCameraFeeds = JSON.parse(JSON.stringify(initialCameraFeeds));
+let liveWhatsAppAlerts = JSON.parse(JSON.stringify(initialWhatsAppAlerts));
 let currentSimulationMode = null; // null or { caseId, stepIndex }
-let eventLogHistory = [
-  { time: "20:00:15", type: "system", text: "CrowdShield AI Engine initialized & connected to CCTV Network." },
-  { time: "20:01:00", type: "yolo", text: "YOLO V8 Detection active across 4 perimeter cameras." },
-  { time: "20:02:30", type: "info", text: "All gate flow metrics within baseline tolerance." }
+
+// Live dispatched vehicle positions (for map animations)
+let activeMovingVehicles = [
+  { id: "p1", type: "police", label: "Police Unit 01", lat: 28.6310, lng: 77.2415, targetLat: 28.6385, targetLng: 77.2432, moving: false },
+  { id: "h1", type: "ambulance", label: "Ambulance 01 (LNJP)", lat: 28.6355, lng: 77.2405, targetLat: 28.6377, targetLng: 77.2432, moving: false }
 ];
 
-// Helper to calculate AI Risk Score Formula
-// Formula: 40% Density + 20% Speed Risk + 15% Reverse Movement + 10% Weather + 10% Gate Congestion + 5% Previous Incidents
-export function calculateRiskScore(gates, cameraFeeds, weather) {
-  // Max gate density
+// Helper to calculate AI Risk Score Level
+// 0-30: SAFE, 31-60: WARNING, 61-80: HIGH, 81-100: CRITICAL
+export function calculateRiskScoreLevel(gates, cameraFeeds, weather) {
   let maxDensity = Math.max(...cameraFeeds.map(c => c.density));
-  let densityScore = Math.min(100, (maxDensity / 6.0) * 100); // 6 p/m2 is emergency limit
-
-  // Speed risk (too slow or abnormal running)
-  let avgSpeed = cameraFeeds.reduce((acc, c) => acc + c.speed, 0) / cameraFeeds.length;
-  let speedScore = avgSpeed < 0.6 ? 90 : (avgSpeed > 3.0 ? 80 : 20);
-
-  // Reverse / Abnormal motion
+  let densityScore = Math.min(100, (maxDensity / 6.0) * 100);
   let abnormalCount = cameraFeeds.filter(c => c.abnormalMotion || c.runningDetected || c.fallingDetected).length;
-  let reverseScore = abnormalCount * 30;
-
-  // Weather risk
   let weatherScore = weather.condition.includes("Rain") ? 75 : 10;
-
-  // Gate Congestion
   let criticalGates = gates.filter(g => g.status === "Critical" || g.status === "Closed" || g.current > 900).length;
-  let gateScore = criticalGates * 40;
 
-  // Past Incidents (baseline)
-  let pastIncidentScore = 15;
-
-  let totalScore = (0.40 * densityScore) +
-                   (0.20 * speedScore) +
-                   (0.15 * reverseScore) +
-                   (0.10 * weatherScore) +
-                   (0.10 * gateScore) +
-                   (0.05 * pastIncidentScore);
-
+  let totalScore = (0.40 * densityScore) + (0.20 * 20) + (0.15 * abnormalCount * 30) + (0.10 * weatherScore) + (0.10 * criticalGates * 40) + 5;
   let finalScore = Math.min(99, Math.max(12, Math.round(totalScore)));
 
-  // Generate dynamic reasons
-  let reasons = [];
-  if (densityScore > 60) reasons.push("High Crowd Density at Gates");
-  if (criticalGates > 0) reasons.push(`Gate 1 Congestion Critical (${gates[0].current}/1000)`);
-  if (abnormalCount > 0) reasons.push("Abnormal Motion & Reverse Flow Detected");
-  if (weather.condition.includes("Rain")) reasons.push("Heavy Rain Emergency Rush");
-  if (reasons.length === 0) reasons.push("Uniform Crowd Distribution", "Normal Flow Speeds");
+  let badge = "SAFE";
+  let color = "#00C853";
+  if (finalScore > 80) { badge = "CRITICAL"; color = "#FF3B30"; }
+  else if (finalScore > 60) { badge = "HIGH"; color = "#F97316"; }
+  else if (finalScore > 30) { badge = "WARNING"; color = "#FFC107"; }
 
   return {
     score: finalScore,
-    breakdown: {
-      densityContrib: Math.round(0.40 * densityScore),
-      speedContrib: Math.round(0.20 * speedScore),
-      reverseContrib: Math.round(0.15 * reverseScore),
-      weatherContrib: Math.round(0.10 * weatherScore),
-      gateContrib: Math.round(0.10 * gateScore),
-      incidentContrib: Math.round(0.05 * pastIncidentScore)
-    },
-    reasons
+    badge,
+    color,
+    reasons: criticalGates > 0 ? ["Gate Bottleneck Detected", "Rain Surge"] : ["Baseline flow uniform", "Normal speeds"]
   };
 }
 
 // REST API Endpoints
 
-// 1. Auth Endpoint
+// 1. Auth Endpoint for 6 Roles
 app.post("/api/auth/login", (req, res) => {
-  const { role, username, password } = req.body;
-  if (!role) {
-    return res.status(400).json({ error: "Role is required" });
-  }
+  const { role, username } = req.body;
+  if (!role) return res.status(400).json({ error: "Role is required" });
+
+  const roleTitles = {
+    super_admin: "Super Admin",
+    control_room: "Control Room Lead",
+    police: "Police Commander",
+    hospital: "Hospital Chief Doctor",
+    traffic: "Traffic Operations Officer",
+    drone: "Drone Mission Pilot"
+  };
 
   const token = jwt.sign({ role, username: username || role }, JWT_SECRET, { expiresIn: "12h" });
   return res.json({
@@ -100,27 +79,29 @@ app.post("/api/auth/login", (req, res) => {
     token,
     user: {
       role,
-      name: `${role.toUpperCase().replace("_", " ")} Officer`,
-      badgeId: `CS-${Math.floor(1000 + Math.random() * 9000)}`
+      name: roleTitles[role] || "Command Officer",
+      badgeId: `DELHI-CS-${Math.floor(1000 + Math.random() * 9000)}`
     }
   });
 });
 
 // 2. Get Telemetry Endpoint
 app.get("/api/telemetry", (req, res) => {
-  const riskInfo = calculateRiskScore(liveState.gates, liveCameraFeeds, liveState.weather);
+  const riskInfo = calculateRiskScoreLevel(liveState.gates, liveCameraFeeds, liveState.weather);
   res.json({
     venue: liveState,
+    landmarks: delhiLandmarks,
     cameraFeeds: liveCameraFeeds,
     risk: riskInfo,
-    eventLogs: eventLogHistory.slice(-20),
+    alerts: liveWhatsAppAlerts.slice(-15),
+    vehicles: activeMovingVehicles,
     simulationMode: currentSimulationMode
   });
 });
 
 // 3. Scenario Simulation Trigger Endpoint
 app.post("/api/simulations/step", (req, res) => {
-  const { caseId, stepIndex } = req.body; // e.g. case1, stepIndex 0..6
+  const { caseId, stepIndex } = req.body;
   const scenario = simulationScenarios[caseId];
 
   if (!scenario || stepIndex === undefined || stepIndex < 0 || stepIndex >= scenario.steps.length) {
@@ -130,37 +111,31 @@ app.post("/api/simulations/step", (req, res) => {
   const stepData = scenario.steps[stepIndex];
   currentSimulationMode = { caseId, stepIndex, stepData };
 
-  // Apply simulation state changes to liveState
   if (stepData.gate1Count !== undefined) liveState.gates[0].current = stepData.gate1Count;
-  if (stepData.gate1Status !== undefined) liveState.gates[0].status = stepData.gate1Status;
-  if (stepData.totalCrowd !== undefined) liveState.currentTotalCrowd = stepData.totalCrowd;
   if (stepData.weatherCondition !== undefined) liveState.weather.condition = stepData.weatherCondition;
 
-  // Add event log
-  const now = new Date().toLocaleTimeString('en-US', { hour12: false });
-  eventLogHistory.push({
-    time: now,
-    type: stepData.emergency ? "emergency" : "sim",
-    text: stepData.eventMessage
+  // Add WhatsApp alert
+  liveWhatsAppAlerts.unshift({
+    id: Date.now(),
+    type: stepData.riskScore > 80 ? "emergency" : "sim",
+    icon: stepData.riskScore > 80 ? "🚨" : "ℹ️",
+    title: stepData.title,
+    text: stepData.eventMessage,
+    time: "Just now"
   });
 
-  // Broadcast via socket.io immediately
   io.emit("telemetry_update", {
     venue: liveState,
+    landmarks: delhiLandmarks,
     cameraFeeds: liveCameraFeeds,
     risk: {
       score: stepData.riskScore,
-      breakdown: {
-        densityContrib: Math.round(stepData.riskScore * 0.4),
-        speedContrib: Math.round(stepData.riskScore * 0.2),
-        reverseContrib: Math.round(stepData.riskScore * 0.15),
-        weatherContrib: Math.round(stepData.riskScore * 0.1),
-        gateContrib: Math.round(stepData.riskScore * 0.1),
-        incidentContrib: Math.round(stepData.riskScore * 0.05)
-      },
-      reasons: stepData.reasons
+      badge: stepData.riskBadge,
+      color: stepData.riskColor,
+      reasons: [stepData.description]
     },
-    eventLogs: eventLogHistory.slice(-20),
+    alerts: liveWhatsAppAlerts.slice(-15),
+    vehicles: activeMovingVehicles,
     simulationMode: currentSimulationMode
   });
 
@@ -172,100 +147,121 @@ app.post("/api/simulations/reset", (req, res) => {
   currentSimulationMode = null;
   liveState = JSON.parse(JSON.stringify(initialVenueData));
   liveCameraFeeds = JSON.parse(JSON.stringify(initialCameraFeeds));
-  eventLogHistory.push({
-    time: new Date().toLocaleTimeString('en-US', { hour12: false }),
-    type: "system",
-    text: "Simulation reset. Baseline telemetry restored."
-  });
+  activeMovingVehicles.forEach(v => { v.moving = false; });
 
   io.emit("telemetry_update", {
     venue: liveState,
+    landmarks: delhiLandmarks,
     cameraFeeds: liveCameraFeeds,
-    risk: calculateRiskScore(liveState.gates, liveCameraFeeds, liveState.weather),
-    eventLogs: eventLogHistory.slice(-20),
+    risk: calculateRiskScoreLevel(liveState.gates, liveCameraFeeds, liveState.weather),
+    alerts: liveWhatsAppAlerts.slice(-15),
+    vehicles: activeMovingVehicles,
     simulationMode: null
   });
 
   res.json({ success: true });
 });
 
-// 5. Trigger Emergency Services Dispatch
+// 5. Emergency Actions Dispatch (Police, Ambulance, Green Corridor, AI Approve)
 app.post("/api/emergency/dispatch", (req, res) => {
   const { service, target } = req.body;
-  const now = new Date().toLocaleTimeString('en-US', { hour12: false });
+  const now = "Just now";
 
   if (service === "green_corridor") {
     liveState.emergencyServices.trafficCorridor.greenCorridorActive = true;
     liveState.emergencyServices.trafficCorridor.status = "Active Green Corridor";
-    eventLogHistory.push({
-      time: now,
-      type: "emergency",
-      text: "GREEN CORRIDOR ACTIVATED: Traffic signals override enabled for ambulances."
+    liveWhatsAppAlerts.unshift({
+      id: Date.now(),
+      type: "traffic",
+      icon: "🚦",
+      title: "Green Corridor Activated",
+      text: "Traffic signals synchronized for LNJP Hospital route.",
+      time: now
     });
   } else if (service === "police") {
+    const pVehicle = activeMovingVehicles.find(v => v.type === "police");
+    if (pVehicle) pVehicle.moving = true;
     liveState.emergencyServices.policeNearby += 12;
-    eventLogHistory.push({
-      time: now,
-      type: "emergency",
-      text: "POLICE DISPATCH: Rapid Response Unit deployed to Gate 1 Perimeter."
+    liveWhatsAppAlerts.unshift({
+      id: Date.now(),
+      type: "police",
+      icon: "🚨",
+      title: "Police Unit 01 Dispatched",
+      text: "25 officers en route to North Gate 1.",
+      time: now
     });
   } else if (service === "ambulance") {
+    const aVehicle = activeMovingVehicles.find(v => v.type === "ambulance");
+    if (aVehicle) aVehicle.moving = true;
     if (liveState.emergencyServices.ambulancesAvailable > 0) {
       liveState.emergencyServices.ambulancesAvailable -= 1;
     }
-    eventLogHistory.push({
-      time: now,
+    liveWhatsAppAlerts.unshift({
+      id: Date.now(),
+      type: "ambulance",
+      icon: "🚑",
+      title: "Ambulance 01 Leaving Hospital",
+      text: `Unit dispatched to ${target || "Gate 1 Medical Bay"}.`,
+      time: now
+    });
+  } else if (service === "ai_approve") {
+    // Execute AI recommendations
+    liveState.gates[0].status = "Closed";
+    liveState.gates[2].status = "Safe";
+    liveState.emergencyServices.trafficCorridor.greenCorridorActive = true;
+    activeMovingVehicles.forEach(v => { v.moving = true; });
+
+    liveWhatsAppAlerts.unshift({
+      id: Date.now(),
       type: "emergency",
-      text: `AMBULANCE DISPATCH: Unit sent to ${target || "Gate 1 Medical Bay"}. City Hospital prepped.`
+      icon: "⚡",
+      title: "AI Action Approved by Control Room",
+      text: "Gate 1 closed. Gate 3 opened. Police & Ambulances dispatched.",
+      time: now
     });
   }
+
+  io.emit("telemetry_update", {
+    venue: liveState,
+    landmarks: delhiLandmarks,
+    cameraFeeds: liveCameraFeeds,
+    risk: calculateRiskScoreLevel(liveState.gates, liveCameraFeeds, liveState.weather),
+    alerts: liveWhatsAppAlerts.slice(-15),
+    vehicles: activeMovingVehicles,
+    simulationMode: currentSimulationMode
+  });
 
   res.json({ success: true, venue: liveState });
 });
 
-// Background Telemetry Simulation Loop (runs every 3s if not in step-by-step active simulation)
+// Background Vehicle Movement & Telemetry Loop
 setInterval(() => {
-  if (!currentSimulationMode) {
-    // Minor natural fluctuations in count
-    liveState.gates.forEach(g => {
-      const delta = Math.floor((Math.random() - 0.48) * 12);
-      g.current = Math.max(100, Math.min(g.capacity, g.current + delta));
-      if (g.current > 850) g.status = "Critical";
-      else if (g.current > 600) g.status = "Warning";
-      else g.status = "Safe";
-    });
+  // Smoothly move dispatched vehicles towards target coordinates
+  activeMovingVehicles.forEach(v => {
+    if (v.moving) {
+      const latDiff = v.targetLat - v.lat;
+      const lngDiff = v.targetLng - v.lng;
 
-    liveState.currentTotalCrowd = liveState.gates.reduce((sum, g) => sum + g.current, 45000);
-
-    // Dynamic camera vision updates
-    liveCameraFeeds.forEach(cam => {
-      const countDelta = Math.floor((Math.random() - 0.45) * 10);
-      cam.peopleCount = Math.max(150, cam.peopleCount + countDelta);
-      cam.density = Number((cam.peopleCount / 200).toFixed(1));
-      cam.speed = Number((1.2 + (Math.random() * 0.4 - 0.2)).toFixed(1));
-    });
-
-    // Random periodic event log
-    if (Math.random() > 0.65) {
-      const now = new Date().toLocaleTimeString('en-US', { hour12: false });
-      const sampleEvents = [
-        "YOLO Detection: Person count updated across North/East gates.",
-        "Crowd flow density normal in East Promenade.",
-        "AI Evacuation routes checked. Exit paths 100% operational.",
-        "Drone Recon 01: Aerial telemetry synced with control room.",
-        "Acoustic sensors report normal noise levels."
-      ];
-      const randomText = sampleEvents[Math.floor(Math.random() * sampleEvents.length)];
-      eventLogHistory.push({ time: now, type: "info", text: randomText });
+      if (Math.abs(latDiff) > 0.0001 || Math.abs(lngDiff) > 0.0001) {
+        v.lat += latDiff * 0.25;
+        v.lng += lngDiff * 0.25;
+      }
     }
+  });
 
-    const riskInfo = calculateRiskScore(liveState.gates, liveCameraFeeds, liveState.weather);
+  if (!currentSimulationMode) {
+    liveState.gates.forEach(g => {
+      const delta = Math.floor((Math.random() - 0.48) * 10);
+      g.current = Math.max(100, Math.min(g.capacity, g.current + delta));
+    });
 
     io.emit("telemetry_update", {
       venue: liveState,
+      landmarks: delhiLandmarks,
       cameraFeeds: liveCameraFeeds,
-      risk: riskInfo,
-      eventLogs: eventLogHistory.slice(-20),
+      risk: calculateRiskScoreLevel(liveState.gates, liveCameraFeeds, liveState.weather),
+      alerts: liveWhatsAppAlerts.slice(-15),
+      vehicles: activeMovingVehicles,
       simulationMode: null
     });
   }
@@ -273,5 +269,5 @@ setInterval(() => {
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
-  console.log(`[CrowdShield AI] Server running on port ${PORT}`);
+  console.log(`[CrowdShield AI Redesign] Server running on port ${PORT}`);
 });

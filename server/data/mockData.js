@@ -1,21 +1,32 @@
+export const delhiLandmarks = {
+  stadium: { name: "Arun Jaitley Stadium", lat: 28.6377, lng: 77.2432, capacity: 55000, current: 48250 },
+  hospital: { name: "AIIMS / LNJP Emergency Care", lat: 28.6355, lng: 77.2405, beds: 42, icu: 14, doctors: 18, bloodUnits: 65 },
+  policeHq: { name: "Delhi Police Central HQ", lat: 28.6310, lng: 77.2415, officersAvailable: 140 },
+  trafficHq: { name: "Delhi Traffic Control HQ", lat: 28.6280, lng: 77.2350, corridorActive: false },
+  metro: { name: "Mandi House / Stadium Metro", lat: 28.6258, lng: 77.2343, density: 4.8 },
+  droneBase: { name: "Recon Drone Launch Pad", lat: 28.6410, lng: 77.2450, battery: 94, altitude: "120m" }
+};
+
 export const initialVenueData = {
-  venueName: "Metropolis National Stadium",
-  capacity: 80000,
+  venueName: "Arun Jaitley Stadium (Delhi Ops)",
+  city: "New Delhi, India",
+  capacity: 55000,
   currentTotalCrowd: 48250,
   safeZones: 3,
   warningZones: 1,
   criticalZones: 0,
+  riskLevel: "SAFE", // SAFE (0-30), WARNING (31-60), HIGH (61-80), CRITICAL (81-100)
   weather: {
     condition: "Clear",
-    temperature: 24,
+    temperature: 28,
     rainProbability: 5,
-    windSpeed: "12 km/h"
+    windSpeed: "10 km/h"
   },
   gates: [
-    { id: "gate-1", name: "Gate 1 (North Main)", capacity: 1000, current: 450, status: "Safe", flowRate: "35 p/min", lat: 28.6139, lng: 77.2090 },
-    { id: "gate-2", name: "Gate 2 (East Express)", capacity: 1000, current: 520, status: "Safe", flowRate: "42 p/min", lat: 28.6145, lng: 77.2105 },
-    { id: "gate-3", name: "Gate 3 (South VIP & Metro)", capacity: 1000, current: 380, status: "Safe", flowRate: "28 p/min", lat: 28.6130, lng: 77.2095 },
-    { id: "gate-4", name: "Gate 4 (West Transit)", capacity: 1000, current: 610, status: "Warning", flowRate: "58 p/min", lat: 28.6135, lng: 77.2075 }
+    { id: "gate-1", name: "Gate 1 (North Main)", capacity: 1000, current: 450, status: "Safe", flowRate: "35 p/min", lat: 28.6385, lng: 77.2432 },
+    { id: "gate-2", name: "Gate 2 (East Concourse)", capacity: 1000, current: 520, status: "Safe", flowRate: "42 p/min", lat: 28.6377, lng: 77.2445 },
+    { id: "gate-3", name: "Gate 3 (South Metro Exit)", capacity: 1000, current: 380, status: "Safe", flowRate: "28 p/min", lat: 28.6368, lng: 77.2432 },
+    { id: "gate-4", name: "Gate 4 (West Transit)", capacity: 1000, current: 610, status: "Warning", flowRate: "58 p/min", lat: 28.6377, lng: 77.2418 }
   ],
   emergencyServices: {
     ambulancesAvailable: 8,
@@ -23,17 +34,18 @@ export const initialVenueData = {
     activeHospitals: 3,
     activeAlerts: 0,
     hospitals: [
-      { id: "h1", name: "Central City Hospital", distance: "2.1 km", bedsAvailable: 18, ambulances: 4, phone: "+1-800-555-0199" },
-      { id: "h2", name: "Metro Trauma Center", distance: "3.8 km", bedsAvailable: 12, ambulances: 3, phone: "+1-800-555-0188" },
-      { id: "h3", name: "St. Jude Emergency Care", distance: "5.4 km", bedsAvailable: 25, ambulances: 5, phone: "+1-800-555-0177" }
+      { id: "h1", name: "LNJP Central Hospital", distance: "850 m", bedsAvailable: 18, icuBeds: 6, ambulances: 4, phone: "+91-11-2323-0000" },
+      { id: "h2", name: "AIIMS Trauma Center", distance: "2.4 km", bedsAvailable: 12, icuBeds: 4, ambulances: 3, phone: "+91-11-2658-8500" },
+      { id: "h3", name: "G.B. Pant Hospital", distance: "1.2 km", bedsAvailable: 25, icuBeds: 8, ambulances: 5, phone: "+91-11-2323-4000" }
     ],
     policeUnits: [
-      { id: "p1", unit: "Unit Alpha (Rapid Patrol)", eta: "2 min", officers: 8, location: "North Outer Ring" },
-      { id: "p2", unit: "Unit Bravo (Crowd Taskforce)", eta: "4 min", officers: 12, location: "Metro Junction" }
+      { id: "p1", unit: "Patrol Unit 01 (North Gate)", officers: 25, available: 32, distance: "850 meters", eta: "2 min", lat: 28.6390, lng: 77.2432, status: "Standby" },
+      { id: "p2", unit: "Patrol Unit 02 (Metro Plaza)", officers: 40, available: 45, distance: "1.4 km", eta: "4 min", lat: 28.6260, lng: 77.2345, status: "Standby" }
     ],
     trafficCorridor: {
-      status: "Normal",
-      greenCorridorActive: false
+      status: "Normal Flow",
+      greenCorridorActive: false,
+      priorityRoute: "Stadium -> Vikas Marg -> LNJP Hospital"
     }
   }
 };
@@ -41,228 +53,274 @@ export const initialVenueData = {
 export const initialCameraFeeds = [
   {
     id: "cam-1",
-    name: "Camera 1 - North Gate",
-    location: "North Entrance Concourse",
+    name: "Camera 1 — North Gate Entrance",
+    location: "North Gate Gate 1",
     peopleCount: 450,
-    density: 2.1, // persons/m2
-    speed: 1.2, // m/s
-    abnormalMotion: false,
-    fallingDetected: false,
+    density: 2.1,
+    speed: 1.2,
+    risk: "Safe",
     runningDetected: false,
+    fallingDetected: false,
+    suspiciousMotion: false,
+    aiRecommendation: "Flow normal. Keep Gate 1 turnstiles open.",
     detections: [
-      { id: 1, type: "person", label: "Person (Walking)", confidence: 0.94, bbox: [20, 30, 45, 65] },
-      { id: 2, type: "person", label: "Person (Walking)", confidence: 0.89, bbox: [50, 40, 75, 75] },
-      { id: 3, type: "person", label: "Person (Standing)", confidence: 0.96, bbox: [70, 20, 95, 55] }
+      { id: 1, type: "person", label: "Person (Walking)", confidence: 0.96, bbox: [20, 30, 45, 65] },
+      { id: 2, type: "person", label: "Person (Standing)", confidence: 0.92, bbox: [50, 40, 75, 75] }
     ]
   },
   {
     id: "cam-2",
-    name: "Camera 2 - South Gate",
-    location: "South Gate Plaza",
+    name: "Camera 2 — South Metro Junction",
+    location: "Gate 3 Metro Plaza",
     peopleCount: 380,
     density: 1.8,
     speed: 1.4,
-    abnormalMotion: false,
-    fallingDetected: false,
+    risk: "Safe",
     runningDetected: false,
+    fallingDetected: false,
+    suspiciousMotion: false,
+    aiRecommendation: "Flow normal.",
     detections: [
-      { id: 1, type: "person", label: "Person (Walking)", confidence: 0.91, bbox: [15, 25, 40, 60] },
-      { id: 2, type: "person", label: "Person (Walking)", confidence: 0.88, bbox: [60, 30, 85, 70] }
+      { id: 1, type: "person", label: "Person (Walking)", confidence: 0.94, bbox: [15, 25, 40, 60] }
     ]
   },
   {
     id: "cam-3",
-    name: "Camera 3 - East Gate",
-    location: "East Promenade",
+    name: "Camera 3 — East Promenade",
+    location: "East Promenade Gate 2",
     peopleCount: 520,
     density: 2.4,
     speed: 1.1,
-    abnormalMotion: false,
-    fallingDetected: false,
+    risk: "Safe",
     runningDetected: false,
+    fallingDetected: false,
+    suspiciousMotion: false,
+    aiRecommendation: "Baseline safe.",
     detections: [
-      { id: 1, type: "person", label: "Person (Walking)", confidence: 0.95, bbox: [30, 20, 55, 55] },
-      { id: 2, type: "person", label: "Person (Standing)", confidence: 0.92, bbox: [65, 35, 90, 75] }
+      { id: 1, type: "person", label: "Person (Walking)", confidence: 0.91, bbox: [30, 20, 55, 55] }
     ]
   },
   {
     id: "cam-4",
-    name: "Camera 4 - West Gate",
-    location: "West Transit Exit",
+    name: "Camera 4 — West Transit Corridor",
+    location: "Gate 4 Transit Exit",
     peopleCount: 610,
     density: 3.2,
     speed: 0.8,
-    abnormalMotion: false,
-    fallingDetected: false,
+    risk: "Warning",
     runningDetected: false,
+    fallingDetected: false,
+    suspiciousMotion: false,
+    aiRecommendation: "Monitor Gate 4. Density approaching warning limit.",
     detections: [
-      { id: 1, type: "person", label: "Person (Congested)", confidence: 0.97, bbox: [25, 15, 50, 50] },
-      { id: 2, type: "person", label: "Person (Slow)", confidence: 0.93, bbox: [55, 45, 80, 85] }
+      { id: 1, type: "person", label: "Person (Congested)", confidence: 0.97, bbox: [25, 15, 50, 50] }
     ]
   }
+];
+
+export const initialWhatsAppAlerts = [
+  { id: 1, type: "police", icon: "🚨", title: "Police Unit 01 Dispatched", text: "25 officers assigned to North Gate 1.", time: "2 sec ago" },
+  { id: 2, type: "ambulance", icon: "🚑", title: "Ambulance 02 En Route", text: "Dispatched to Gate 1 Medical Bay.", time: "30 sec ago" },
+  { id: 3, type: "traffic", icon: "🚦", title: "Green Corridor Standby", text: "Traffic signals prepped on Vikas Marg.", time: "1 min ago" }
 ];
 
 export const simulationScenarios = {
   case1: {
     id: "stadium-stampede",
-    title: "Case 1: Stadium Stampede Scenario",
+    title: "Case 1: Cricket Stadium Stampede",
+    livesSaved: 37,
     steps: [
       {
         step: 1,
-        title: "Normal Crowd Flow",
-        description: "Crowd flow is smooth. All gates functioning within standard parameters.",
-        riskScore: 18,
-        totalCrowd: 48250,
+        timeLabel: "0 min",
+        title: "Normal Entry",
+        description: "Match entry baseline. All turnstiles operating normally.",
+        riskScore: 15,
+        riskBadge: "SAFE",
+        riskColor: "#00C853",
         gate1Count: 450,
-        gate1Status: "Safe",
         weatherCondition: "Clear",
-        reasons: ["Optimal flow rates", "Uniform distribution"],
-        eventMessage: "12:00 PM - System initialized. All gates operating normally.",
-        emergency: false
+        eventMessage: "0 min — Everything normal. Gate 1 flow safe. Risk Score: 15.",
+        popup: null
       },
       {
         step: 2,
-        title: "Gate 1 Bottleneck Formation",
-        description: "Gate 1 ticketing scanner experiences glitch. Crowd density rises to 4.2 p/m².",
-        riskScore: 52,
-        totalCrowd: 52100,
-        gate1Count: 820,
-        gate1Status: "Warning",
+        timeLabel: "2 min",
+        title: "Gate 1 Turnstile Bottleneck",
+        description: "Gate 1 scanner glitch. Crowd density increases to 4.2 p/m².",
+        riskScore: 48,
+        riskBadge: "WARNING",
+        riskColor: "#FFC107",
+        gate1Count: 780,
         weatherCondition: "Clear",
-        reasons: ["Gate 1 Congestion rising", "Turnstile speed bottleneck"],
-        eventMessage: "12:03 PM - Warning: Gate 1 density crossed 4 p/m². Police notified.",
-        emergency: false
+        eventMessage: "2 min — Gate 1 crowd increasing rapidly. Risk Score: 48.",
+        popup: null
       },
       {
         step: 3,
-        title: "Sudden Rain Rush",
-        description: "Unexpected heavy rain starts outside. Thousands rush into Gate 1 for cover.",
-        riskScore: 76,
-        totalCrowd: 56400,
-        gate1Count: 960,
-        gate1Status: "Critical",
+        timeLabel: "3 min",
+        title: "Rain Rush",
+        description: "Unseasonal heavy rain starts outside. Thousands surge into Gate 1 concourse.",
+        riskScore: 65,
+        riskBadge: "HIGH",
+        riskColor: "#F97316",
+        gate1Count: 920,
         weatherCondition: "Heavy Rain",
-        reasons: ["Crowd Density High at Gate 1", "Reverse Crowd Movement", "Rain Rush Detected"],
-        eventMessage: "12:05 PM - Rain rush detected. Reverse movement triggered at North Concourse.",
-        emergency: false
+        eventMessage: "3 min — Unseasonal rain surge. People rushing for shelter. Risk Score: 65.",
+        popup: null
       },
       {
         step: 4,
+        timeLabel: "4 min",
         title: "AI Stampede Hazard Prediction",
-        description: "AI predicts 94.8% probability of severe stampede within 2 minutes.",
-        riskScore: 84,
-        totalCrowd: 59100,
+        description: "AI predicts 96% stampede hazard within 120 seconds.",
+        riskScore: 82,
+        riskBadge: "CRITICAL",
+        riskColor: "#FF3B30",
         gate1Count: 990,
-        gate1Status: "Critical",
         weatherCondition: "Heavy Rain",
-        reasons: ["Crowd Density Exceeding Threshold (5.8 p/m²)", "Gate 1 Blocked", "Sudden Compression Wave"],
-        eventMessage: "12:06 PM - Emergency Alert! AI predicts stampede in 120s. LED boards & speakers auto-activated.",
-        emergency: true
+        eventMessage: "4 min — CRITICAL: People rushing! AI predicts stampede in 120s. Risk Score: 82.",
+        popup: {
+          title: "⚠ HIGH CROWD RISK — PREDICTED STAMPEDE",
+          confidence: "96%",
+          recommendedActions: [
+            "Redirect Crowd to Gate 3 & Gate 2",
+            "Open Gate 3 (South Metro)",
+            "Halt & Close Gate 1 Entry",
+            "Notify Police Patrol Unit 01",
+            "Alert LNJP Hospital Emergency"
+          ],
+          whyExplanation: {
+            predictedInjuries: 12,
+            distanceToHospital: "850 meters",
+            trafficStatus: "Heavy on Vikas Marg",
+            confidence: "96%"
+          }
+        }
       },
       {
         step: 5,
-        title: "Evacuation & Dynamic Rerouting",
-        description: "Gate 1 entry halted. Audio broadcasts instruct crowd to divert to Gate 2 & Gate 3.",
-        riskScore: 91,
-        totalCrowd: 58900,
-        gate1Count: 995,
-        gate1Status: "Closed",
-        weatherCondition: "Heavy Rain",
-        reasons: ["Gate 1 Completely Blocked", "High Compression Hazard", "Evacuation Route Deployed"],
-        eventMessage: "12:07 PM - Gate 1 closed. AI redirection vectors active towards Gate 2 and Gate 3.",
-        emergency: true
-      },
-      {
-        step: 6,
-        title: "Emergency Response & Green Corridor",
-        description: "Ambulances dispatched. Police clear North perimeter. Traffic signals synced to Green Corridor.",
-        riskScore: 64,
-        totalCrowd: 53200,
-        gate1Count: 650,
-        gate1Status: "Clearing",
-        weatherCondition: "Light Rain",
-        reasons: ["Green Corridor Active", "Crowd dispersing to Gate 2/3"],
-        eventMessage: "12:09 PM - Emergency services on site. Green Corridor active for medical units.",
-        emergency: false
-      },
-      {
-        step: 7,
-        title: "Situation Stabilized & Safe Evacuation",
-        description: "Stadium crowd safely redirected and evacuated. Zero casualties reported.",
-        riskScore: 22,
-        totalCrowd: 41000,
-        gate1Count: 210,
-        gate1Status: "Safe",
+        timeLabel: "5 min",
+        title: "Crowd Safely Evacuated",
+        description: "Police redirect crowd to Gate 3 & 2. Green Corridor clears ambulance path.",
+        riskScore: 20,
+        riskBadge: "SAFE",
+        riskColor: "#00C853",
+        gate1Count: 180,
         weatherCondition: "Clear",
-        reasons: ["All gates clear", "Normal movement restored"],
-        eventMessage: "12:12 PM - Incident resolved. 18,200 attendees safely guided.",
-        emergency: false
+        eventMessage: "5 min — People safely evacuated. Risk Score reduced to 20.",
+        livesSavedCard: 37,
+        popup: null
       }
     ]
   },
   case2: {
     id: "railway-station",
-    title: "Case 2: Festival Railway Station Overcrowding",
+    title: "Case 2: Railway Station Festival Rush",
+    livesSaved: 142,
     steps: [
       {
         step: 1,
-        title: "Diwali Rush Peak",
-        description: "Platform 1 & 2 congested as 3 special trains arrive simultaneously.",
-        riskScore: 45,
-        reasons: ["Platform 1 capacity at 85%"],
-        eventMessage: "14:00 - High festival passenger volume at Central Railway Station.",
-        emergency: false
+        timeLabel: "0 min",
+        title: "Diwali Passenger Surge",
+        description: "Platform 1 & 2 congested as 3 festival special trains land.",
+        riskScore: 35,
+        riskBadge: "WARNING",
+        riskColor: "#FFC107",
+        eventMessage: "0 min — Diwali festival rush peak at Mandi House Railway Junction.",
+        popup: null
       },
       {
         step: 2,
-        title: "Platform Surge Warning",
-        description: "Footbridge density reaches critical mass. AI triggers entry restriction.",
+        timeLabel: "3 min",
+        title: "Footbridge Overcrowding",
+        description: "AI predicts platform overload. Passenger rerouting suggested.",
         riskScore: 78,
-        reasons: ["Platform 1 bottleneck", "Footbridge compression wave"],
-        eventMessage: "14:05 - AI restrict entry at Main Concourse to prevent footbridge collapse.",
-        emergency: false
+        riskBadge: "HIGH",
+        riskColor: "#F97316",
+        eventMessage: "3 min — Platform footbridge density high. AI redirects flow to Platform 4.",
+        popup: {
+          title: "⚠ PLATFORM OVERCROWDING PREDICTED",
+          confidence: "94%",
+          recommendedActions: [
+            "Divert incoming surge to Platform 4",
+            "Announce extra festival special train",
+            "Hold Gate A turnstiles"
+          ],
+          whyExplanation: {
+            predictedInjuries: 8,
+            distanceToHospital: "1.2 km",
+            trafficStatus: "Clear",
+            confidence: "94%"
+          }
+        }
       },
       {
         step: 3,
-        title: "AI Rerouting & Special Train Dispatch",
-        description: "AI instructs railway control to hold incoming train & open emergency exit gates.",
-        riskScore: 31,
-        reasons: ["Passenger flow diverted to Platform 4", "Additional special train announced"],
-        eventMessage: "14:12 - Extra train deployed at Platform 4. Footbridge cleared safely.",
-        emergency: false
+        timeLabel: "6 min",
+        title: "Zero Incident Clearance",
+        description: "Passengers board Platform 4 special train. Normal risk restored.",
+        riskScore: 18,
+        riskBadge: "SAFE",
+        riskColor: "#00C853",
+        eventMessage: "6 min — Passengers safely boarded extra train. Zero incidents reported.",
+        livesSavedCard: 142,
+        popup: null
       }
     ]
   },
   case3: {
-    id: "temple-pilgrimage",
-    title: "Case 3: Religious Temple Pilgrimage & Bridge Safety",
+    id: "temple-festival",
+    title: "Case 3: Temple Pilgrimage Bridge Hazard",
+    livesSaved: 89,
     steps: [
       {
         step: 1,
-        title: "Morning Darshan Peak",
-        description: "Over 200,000 pilgrims gathered near river bridge entrance.",
-        riskScore: 58,
-        reasons: ["Pilgrim queue density high"],
-        eventMessage: "06:30 AM - River bridge pilgrim queue expanding rapidly.",
-        emergency: false
+        timeLabel: "0 min",
+        title: "Morning Darshan Queue",
+        description: "200,000 pilgrims gathered near river bridge entrance.",
+        riskScore: 42,
+        riskBadge: "WARNING",
+        riskColor: "#FFC107",
+        eventMessage: "0 min — Pilgrim footfall expanding near river bridge.",
+        popup: null
       },
       {
         step: 2,
-        title: "Bridge Sway Warning",
-        description: "AI sensors detect abnormal resonance & counter-flow panic on narrow suspension bridge.",
+        timeLabel: "4 min",
+        title: "Bridge Load & Sway Alert",
+        description: "Drone detects sway resonance on narrow bridge.",
         riskScore: 88,
-        reasons: ["Bridge capacity exceed by 140%", "Reverse crowd movement"],
-        eventMessage: "06:40 AM - CRITICAL ALERT: Bridge load limit exceeded! Automated barriers engaged.",
-        emergency: true
+        riskBadge: "CRITICAL",
+        riskColor: "#FF3B30",
+        eventMessage: "4 min — CRITICAL: Bridge capacity exceeded by 140%. Entry stopped.",
+        popup: {
+          title: "⚠ BRIDGE COLLAPSE HAZARD PREDICTED",
+          confidence: "97%",
+          recommendedActions: [
+            "Engage automatic bridge barrier",
+            "Divert pilgrims to concrete bypass",
+            "Activate holding pens"
+          ],
+          whyExplanation: {
+            predictedInjuries: 25,
+            distanceToHospital: "2.1 km",
+            trafficStatus: "Corridor Active",
+            confidence: "97%"
+          }
+        }
       },
       {
         step: 3,
-        title: "Emergency Hold & Safe Diversion",
-        description: "AI activates hold holding pens and redirects flow over wide concrete bypass.",
-        riskScore: 26,
-        reasons: ["Bridge cleared", "Bypass holding pens active"],
-        eventMessage: "06:50 AM - Bridge load normalized. Zero stampede casualties.",
-        emergency: false
+        timeLabel: "8 min",
+        title: "Safe Diversion Complete",
+        description: "Pilgrims diverted over wide concrete bypass. Bridge load normalized.",
+        riskScore: 22,
+        riskBadge: "SAFE",
+        riskColor: "#00C853",
+        eventMessage: "8 min — Bridge cleared safely. Zero casualties.",
+        livesSavedCard: 89,
+        popup: null
       }
     ]
   }
